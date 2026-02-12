@@ -1,3 +1,10 @@
+# [1.4.0-dev.3](https://github.com/MorpheApp/morphe-cli/compare/v1.4.0-dev.2...v1.4.0-dev.3) (2026-02-12)
+
+
+### Features
+
+* Add `--continue-on-error` argument, return non zero exit code if patching fails ([#47](https://github.com/MorpheApp/morphe-cli/issues/47)) ([255646b](https://github.com/MorpheApp/morphe-cli/commit/255646b250237087ab7d7f9733daa6751b7e4016))
+
 # [1.4.0-dev.2](https://github.com/MorpheApp/morphe-cli/compare/v1.4.0-dev.1...v1.4.0-dev.2) (2026-02-10)
 
 
