@@ -1,3 +1,10 @@
+# [1.4.0-dev.5](https://github.com/MorpheApp/morphe-cli/compare/v1.4.0-dev.4...v1.4.0-dev.5) (2026-02-14)
+
+
+### Bug Fixes
+
+* Do not log patch name more than once if disabled ([#49](https://github.com/MorpheApp/morphe-cli/issues/49)) ([b980bb8](https://github.com/MorpheApp/morphe-cli/commit/b980bb8e0b3bf8eb4c7af1fe289ff1b63c437fa3))
+
 # [1.4.0-dev.4](https://github.com/MorpheApp/morphe-cli/compare/v1.4.0-dev.3...v1.4.0-dev.4) (2026-02-14)
 
 
