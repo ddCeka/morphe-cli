@@ -27,6 +27,6 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
         with:
-          name: morphe-patches
+          name: morphe-cli
           path: build/libs/morphe-cli-*-all.jar
 
