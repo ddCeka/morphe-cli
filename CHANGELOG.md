@@ -1,3 +1,10 @@
+## [1.5.1-dev.2](https://github.com/MorpheApp/morphe-cli/compare/v1.5.1-dev.1...v1.5.1-dev.2) (2026-03-13)
+
+
+### Bug Fixes
+
+* Bump arsclib version, remove APKEditor ([412847e](https://github.com/MorpheApp/morphe-cli/commit/412847e5a0b990321b7443fe774f7420189035d6))
+
 ## [1.5.1-dev.1](https://github.com/MorpheApp/morphe-cli/compare/v1.5.0...v1.5.1-dev.1) (2026-03-13)
 
 
