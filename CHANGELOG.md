@@ -1,3 +1,10 @@
+## [1.5.1-dev.3](https://github.com/MorpheApp/morphe-cli/compare/v1.5.1-dev.2...v1.5.1-dev.3) (2026-03-13)
+
+
+### Bug Fixes
+
+* Use more logging verbosity when updating options.json ([#72](https://github.com/MorpheApp/morphe-cli/issues/72)) ([4d223f2](https://github.com/MorpheApp/morphe-cli/commit/4d223f299b690c100ff74ece7e4415f562c6ac96))
+
 ## [1.5.1-dev.2](https://github.com/MorpheApp/morphe-cli/compare/v1.5.1-dev.1...v1.5.1-dev.2) (2026-03-13)
 
 
