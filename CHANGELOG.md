@@ -1,3 +1,10 @@
+## [1.6.3-dev.1](https://github.com/MorpheApp/morphe-cli/compare/v1.6.2...v1.6.3-dev.1) (2026-03-23)
+
+
+### Bug Fixes
+
+* Update to Patcher 1.3.3 ([ca579fb](https://github.com/MorpheApp/morphe-cli/commit/ca579fbc8afa32b98a77475ae4db0792d1165a3d))
+
 ## [1.6.2](https://github.com/MorpheApp/morphe-cli/compare/v1.6.1...v1.6.2) (2026-03-22)
 
 
