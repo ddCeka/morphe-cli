@@ -1,3 +1,10 @@
+## [1.6.3-dev.4](https://github.com/MorpheApp/morphe-cli/compare/v1.6.3-dev.3...v1.6.3-dev.4) (2026-03-28)
+
+
+### Bug Fixes
+
+* Handle patching XAPK files ([#93](https://github.com/MorpheApp/morphe-cli/issues/93)) ([5d18490](https://github.com/MorpheApp/morphe-cli/commit/5d18490305f10949bf5407bc7167549e3a1cc8f4))
+
 ## [1.6.3-dev.3](https://github.com/MorpheApp/morphe-cli/compare/v1.6.3-dev.2...v1.6.3-dev.3) (2026-03-28)
 
 
