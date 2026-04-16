@@ -16,6 +16,7 @@ import app.morphe.patcher.apk.ApkUtils.applyTo
 import app.morphe.patcher.logging.toMorpheLogger
 import app.morphe.patcher.patch.Patch
 import app.morphe.patcher.patch.setOptions
+import app.morphe.patcher.resource.CpuArchitecture
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -26,13 +27,15 @@ import java.io.StringWriter
 import java.nio.file.Files
 import java.util.logging.Logger
 
-/**
+/*
  * Single patching pipeline shared by CLI and GUI. (Eventually. Right now we are still having 2 pipelines)
  */
+
+
 object PatchEngine {
 
     enum class PatchStep {
-        PATCHING, REBUILDING, STRIPPING_LIBS, SIGNING
+        PATCHING, REBUILDING, SIGNING
     }
 
     data class StepResult(val step: PatchStep, val success: Boolean, val error: String? = null)
@@ -47,13 +50,21 @@ object PatchEngine {
         val forceCompatibility: Boolean = false,
         val patchOptions: Map<String, Map<String, Any?>> = emptyMap(),
         val unsigned: Boolean = false,
-        val signerName: String = "Morphe",
+        val signerName: String = DEFAULT_SIGNER_NAME,
         val keystoreDetails: ApkUtils.KeyStoreDetails? = null,
-        val architecturesToKeep: List<String> = emptyList(),
+        val architecturesToKeep: Set<CpuArchitecture> = emptySet(),
         val aaptBinaryPath: File? = null,
         val tempDir: File? = null,
         val failOnError: Boolean = true,
-    )
+    ) {
+        companion object {
+            internal const val DEFAULT_KEYSTORE_ALIAS = "Morphe"
+            internal const val DEFAULT_KEYSTORE_PASSWORD = "Morphe"
+            internal const val DEFAULT_SIGNER_NAME = "Morphe"
+            internal const val LEGACY_KEYSTORE_ALIAS = "Morphe Key"
+            internal const val LEGACY_KEYSTORE_PASSWORD = ""
+        }
+    }
 
     data class Result(
         val success: Boolean,
@@ -113,6 +124,8 @@ object PatchEngine {
                 patcherTempDir,
                 config.aaptBinaryPath?.path,
                 patcherTempDir.absolutePath,
+                useArsclib = true,
+                keepArchitectures = config.architecturesToKeep
             )
 
             Patcher(patcherConfig).use { patcher ->
@@ -207,39 +220,50 @@ object PatchEngine {
 
                 currentCoroutineContext().ensureActive()
 
-                // 7. Strip libs (if configured)
-                if (config.architecturesToKeep.isNotEmpty()) {
-                    onProgress("Stripping native libraries...")
-                    try {
-                        ApkLibraryStripper.stripLibraries(rebuiltApk, config.architecturesToKeep) {
-                            onProgress(it)
-                        }
-                        stepResults.add(StepResult(PatchStep.STRIPPING_LIBS, true))
-                    } catch (e: Exception) {
-                        stepResults.add(StepResult(PatchStep.STRIPPING_LIBS, false, e.toString()))
-                        return earlyResult()
-                    }
-                }
-
-                currentCoroutineContext().ensureActive()
-
-                // 8. Sign APK (unless unsigned)
+                // 7. Sign APK (unless unsigned)
                 val tempOutput = File(tempDir, config.outputApk.name)
                 if (!config.unsigned) {
-                    onProgress("Signing APK...")
+                    val keystoreDetails = config.keystoreDetails ?: ApkUtils.KeyStoreDetails(
+                        File(tempDir, "morphe.keystore"),
+                        null,
+                        Config.DEFAULT_KEYSTORE_ALIAS,
+                        Config.DEFAULT_KEYSTORE_PASSWORD,
+                    )
+
+                    if (config.keystoreDetails != null) {
+                        onProgress("Signing APK with custom keystore: ${keystoreDetails.keyStore.name}")
+                    } else {
+                        onProgress("Signing APK...")
+                    }
+
                     try {
-                        val keystoreDetails = config.keystoreDetails ?: ApkUtils.KeyStoreDetails(
-                            File(tempDir, "morphe.keystore"),
-                            null,
-                            "Morphe Key",
-                            "",
-                        )
-                        ApkUtils.signApk(
-                            rebuiltApk,
-                            tempOutput,
-                            config.signerName,
-                            keystoreDetails,
-                        )
+                        fun signApk(details: ApkUtils.KeyStoreDetails) {
+                            ApkUtils.signApk(
+                                rebuiltApk,
+                                tempOutput,
+                                config.signerName,
+                                details,
+                            )
+                        }
+
+                        try {
+                            signApk(keystoreDetails)
+                        } catch (e: Exception) {
+                            // Retry with legacy keystore defaults.
+                            if (config.keystoreDetails == null && keystoreDetails.keyStore.exists()) {
+                                logger.info("Using legacy keystore credentials")
+
+                                val legacyKeystoreDetails = ApkUtils.KeyStoreDetails(
+                                    keystoreDetails.keyStore,
+                                    null,
+                                    Config.LEGACY_KEYSTORE_ALIAS,
+                                    Config.LEGACY_KEYSTORE_PASSWORD,
+                                )
+                                signApk(legacyKeystoreDetails)
+                            } else {
+                                throw e
+                            }
+                        }
                         stepResults.add(StepResult(PatchStep.SIGNING, true))
                     } catch (e: Exception) {
                         stepResults.add(StepResult(PatchStep.SIGNING, false, e.toString()))
@@ -249,7 +273,7 @@ object PatchEngine {
                     rebuiltApk.copyTo(tempOutput, overwrite = true)
                 }
 
-                // 9. Copy to final output
+                // 8. Copy to final output
                 config.outputApk.parentFile?.mkdirs()
                 tempOutput.copyTo(config.outputApk, overwrite = true)
 

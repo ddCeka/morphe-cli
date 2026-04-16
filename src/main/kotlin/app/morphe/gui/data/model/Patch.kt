@@ -5,6 +5,7 @@
 
 package app.morphe.gui.data.model
 
+import app.morphe.patcher.resource.CpuArchitecture
 import kotlinx.serialization.Serializable
 
 /**
@@ -50,7 +51,9 @@ data class Patch(
 @Serializable
 data class CompatiblePackage(
     val name: String,
-    val versions: List<String> = emptyList()
+    val displayName: String? = null,
+    val versions: List<String> = emptyList(),
+    val experimentalVersions: List<String> = emptyList()
 )
 
 @Serializable
@@ -70,7 +73,8 @@ enum class PatchOptionType {
     INT,
     LONG,
     FLOAT,
-    LIST
+    LIST,
+    FILE
 }
 
 /**
@@ -85,6 +89,6 @@ data class PatchConfig(
     val disabledPatches: List<String> = emptyList(),
     val patchOptions: Map<String, String> = emptyMap(),
     val useExclusiveMode: Boolean = false,
-    val striplibs: List<String> = emptyList(),
+    val keepArchitectures: Set<CpuArchitecture> = emptySet(),
     val continueOnError: Boolean = false
 )

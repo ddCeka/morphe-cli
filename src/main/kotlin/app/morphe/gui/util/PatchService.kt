@@ -11,8 +11,10 @@ import app.morphe.gui.data.model.Patch
 import app.morphe.gui.data.model.PatchOption
 import app.morphe.gui.data.model.PatchOptionType
 import app.morphe.patcher.patch.loadPatchesFromJar
+import app.morphe.patcher.resource.CpuArchitecture
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import app.morphe.patcher.apk.ApkUtils
 import java.io.File
 import kotlin.reflect.KType
 import app.morphe.patcher.patch.Patch as LibraryPatch
@@ -82,8 +84,12 @@ class PatchService {
         disabledPatches: List<String> = emptyList(),
         options: Map<String, String> = emptyMap(),
         exclusiveMode: Boolean = false,
-        striplibs: List<String> = emptyList(),
+        keepArchitectures: Set<CpuArchitecture> = emptySet(),
         continueOnError: Boolean = false,
+        keystorePath: String? = null,
+        keystorePassword: String? = null,
+        keystoreAlias: String? = null,
+        keystoreEntryPassword: String? = null,
         onProgress: (String) -> Unit = {}
     ): Result<PatchResult> = withContext(Dispatchers.IO) {
         try {
@@ -113,6 +119,15 @@ class PatchService {
                         .mapValues { it.value as Any? }
                 }.filter { it.value.isNotEmpty() }
 
+                val keystoreDetails = if (keystorePath != null) {
+                    ApkUtils.KeyStoreDetails(
+                        keyStore = File(keystorePath),
+                        keyStorePassword = keystorePassword,
+                        alias = keystoreAlias ?: PatchEngine.Config.DEFAULT_KEYSTORE_ALIAS,
+                        password = keystoreEntryPassword ?: PatchEngine.Config.DEFAULT_KEYSTORE_PASSWORD,
+                    )
+                } else null
+
                 val config = PatchEngine.Config(
                     inputApk = inputApk,
                     patches = loadedPatches,
@@ -122,8 +137,9 @@ class PatchService {
                     exclusiveMode = exclusiveMode,
                     forceCompatibility = true,
                     patchOptions = patchOptions,
-                    architecturesToKeep = striplibs,
+                    architecturesToKeep = keepArchitectures,
                     failOnError = !continueOnError,
+                    keystoreDetails = keystoreDetails,
                 )
 
                 val engineResult = PatchEngine.patch(config, onProgress)
@@ -150,18 +166,24 @@ class PatchService {
         return Patch(
             name = this.name ?: "Unknown",
             description = this.description ?: "",
-            compatiblePackages = this.compatiblePackages?.map { (name, versions) ->
-                CompatiblePackage(
-                    name = name,
-                    versions = versions?.toList() ?: emptyList()
-                )
-            } ?: emptyList(),
+            compatiblePackages = this.compatibility
+                ?.mapNotNull { compatibility ->
+                    val packageName = compatibility.packageName ?: return@mapNotNull null
+                    val (experimental, stable) = compatibility.targets.partition { it.isExperimental }
+                    CompatiblePackage(
+                        name = packageName,
+                        displayName = compatibility.name,
+                        versions = stable.mapNotNull { it.version },
+                        experimentalVersions = experimental.mapNotNull { it.version }
+                    )
+                }
+                ?: emptyList(),
             options = this.options.values.map { opt ->
                 PatchOption(
                     key = opt.key,
                     title = opt.title ?: opt.key,
                     description = opt.description ?: "",
-                    type = mapKTypeToOptionType(opt.type),
+                    type = mapKTypeToOptionType(opt.type, opt.key, opt.title ?: opt.key),
                     default = opt.default?.toString(),
                     required = opt.required
                 )
@@ -173,7 +195,7 @@ class PatchService {
     /**
      * Map Kotlin KType to GUI PatchOptionType.
      */
-    private fun mapKTypeToOptionType(kType: KType): PatchOptionType {
+    private fun mapKTypeToOptionType(kType: KType, key: String, title: String): PatchOptionType {
         val typeName = kType.toString()
         return when {
             typeName.contains("Boolean") -> PatchOptionType.BOOLEAN
@@ -181,7 +203,12 @@ class PatchService {
             typeName.contains("Long") -> PatchOptionType.LONG
             typeName.contains("Float") || typeName.contains("Double") -> PatchOptionType.FLOAT
             typeName.contains("List") || typeName.contains("Array") || typeName.contains("Set") -> PatchOptionType.LIST
-            else -> PatchOptionType.STRING
+            typeName.contains("File") || typeName.contains("Path") || typeName.contains("InputStream") -> PatchOptionType.FILE
+            else -> {
+                val combined = "$key $title".lowercase()
+                val fileKeywords = listOf("icon", "image", "logo", "banner", "path", "file", "png", "jpg")
+                if (fileKeywords.any { it in combined }) PatchOptionType.FILE else PatchOptionType.STRING
+            }
         }
     }
 }
