@@ -1,3 +1,16 @@
+# [1.7.0](https://github.com/MorpheApp/morphe-cli/compare/v1.6.3...v1.7.0) (2026-04-16)
+
+
+### Bug Fixes
+
+* Use patcher implementation of strip libs ([#83](https://github.com/MorpheApp/morphe-cli/issues/83)) ([43f50ea](https://github.com/MorpheApp/morphe-cli/commit/43f50ea133088090648fa318047626f3166b8639)), closes [#80](https://github.com/MorpheApp/morphe-cli/issues/80) [#82](https://github.com/MorpheApp/morphe-cli/issues/82)
+* Use same default keystore values as Morphe Manager ([#96](https://github.com/MorpheApp/morphe-cli/issues/96)) ([2d70c01](https://github.com/MorpheApp/morphe-cli/commit/2d70c016f293ba382266fb5c800073f763d633d8))
+
+
+### Features
+
+* Add GUI third party patch sources, add experimental app patching ([#98](https://github.com/MorpheApp/morphe-cli/issues/98)) ([da5ec1c](https://github.com/MorpheApp/morphe-cli/commit/da5ec1c7e2165a35f8d42b88401a19a958ee25d4))
+
 # [1.7.0-dev.1](https://github.com/MorpheApp/morphe-cli/compare/v1.6.4-dev.2...v1.7.0-dev.1) (2026-04-15)
 
 
