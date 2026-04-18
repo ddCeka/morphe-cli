@@ -1,3 +1,10 @@
+# [1.8.0-dev.2](https://github.com/MorpheApp/morphe-cli/compare/v1.8.0-dev.1...v1.8.0-dev.2) (2026-04-18)
+
+
+### Bug Fixes
+
+* Include Notice and License files in shadow jar release ([#113](https://github.com/MorpheApp/morphe-cli/issues/113)) ([a9a2402](https://github.com/MorpheApp/morphe-cli/commit/a9a2402209bd0ddd273c0aa5185888b74c69d118))
+
 # [1.8.0-dev.1](https://github.com/MorpheApp/morphe-cli/compare/v1.7.0...v1.8.0-dev.1) (2026-04-18)
 
 
