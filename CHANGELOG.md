@@ -1,3 +1,10 @@
+# [1.8.0-dev.7](https://github.com/MorpheApp/morphe-cli/compare/v1.8.0-dev.6...v1.8.0-dev.7) (2026-04-24)
+
+
+### Features
+
+* Add search function to license viewer ([#124](https://github.com/MorpheApp/morphe-cli/issues/124)) ([d3d9feb](https://github.com/MorpheApp/morphe-cli/commit/d3d9feb477d5b5c3281e066efc7a935573a47090))
+
 # [1.8.0-dev.6](https://github.com/MorpheApp/morphe-cli/compare/v1.8.0-dev.5...v1.8.0-dev.6) (2026-04-21)
 
 
