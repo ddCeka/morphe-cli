@@ -9,7 +9,7 @@ import picocli.CommandLine.IVersionProvider
 import java.util.Properties
 import kotlin.system.exitProcess
 
-fun cliMain(args: Array<String>) {
+fun main(args: Array<String>) {
     Logger.setDefault()
     val exitCode = CommandLine(MainCommand).execute(*args)
     exitProcess(exitCode)

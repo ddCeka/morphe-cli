@@ -29,7 +29,7 @@ import java.nio.file.Files
 import java.util.logging.Logger
 
 /*
- * Single patching pipeline shared by CLI and GUI. (Eventually. Right now we are still having 2 pipelines)
+ * Single patching pipeline shared by CLI.
  */
 
 
@@ -57,7 +57,6 @@ object PatchEngine {
         val aaptBinaryPath: File? = null,
         val tempDir: File? = null,
         val failOnError: Boolean = true,
-        val bytecodeMode: BytecodeMode = BytecodeMode.STRIP_FAST
     ) {
         companion object {
             internal const val DEFAULT_KEYSTORE_ALIAS = "Morphe"
@@ -128,11 +127,7 @@ object PatchEngine {
                 patcherTempDir.absolutePath,
                 useArsclib = true,
                 keepArchitectures = config.architecturesToKeep,
-                /*
-                TODO: Remove Windows override once the patcher ships its proper fix
-                 (reflection-based MappedByteBuffer release + copy-instead-of-rename for output DEX files).
-                 */
-                useBytecodeMode = if (isWindows()) { BytecodeMode.FULL } else { config.bytecodeMode }
+                useBytecodeMode = BytecodeMode.STRIP_FAST
             )
 
             Patcher(patcherConfig).use { patcher ->
@@ -286,11 +281,6 @@ object PatchEngine {
 
                 onProgress("Patching complete!")
 
-                // When failOnError=false (user asked to continue on error), reaching this
-                // line means the APK was successfully rebuilt from the patches that worked,
-                // treat the run as a success. Individual failures are still reported via
-                // `failedPatches` for the UI to display. Only strict mode (failOnError=true)
-                // treats any failure as an overall failure.
                 return Result(
                     success = if (config.failOnError) failedPatches.isEmpty() else true,
                     outputPath = config.outputApk.absolutePath,

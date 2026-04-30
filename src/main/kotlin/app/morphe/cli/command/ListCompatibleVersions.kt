@@ -29,6 +29,7 @@ internal class ListCompatibleVersions : Runnable {
         arity = "1..*",
         required = true
     )
+
     @Suppress("unused")
     private fun setPatchesFile(patchesFiles: Set<File>) {
         this.patchesFiles = checkFileExistsOrIsUrl(patchesFiles, spec)

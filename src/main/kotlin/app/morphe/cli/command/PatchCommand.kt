@@ -10,13 +10,11 @@ package app.morphe.cli.command
 
 import app.morphe.cli.command.model.*
 import app.morphe.engine.PatchEngine
-import app.morphe.engine.isWindows
 import app.morphe.engine.PatchEngine.Config.Companion.DEFAULT_KEYSTORE_ALIAS
 import app.morphe.engine.PatchEngine.Config.Companion.DEFAULT_KEYSTORE_PASSWORD
 import app.morphe.engine.PatchEngine.Config.Companion.DEFAULT_SIGNER_NAME
 import app.morphe.engine.PatchEngine.Config.Companion.LEGACY_KEYSTORE_ALIAS
 import app.morphe.engine.PatchEngine.Config.Companion.LEGACY_KEYSTORE_PASSWORD
-import app.morphe.engine.UpdateChecker
 import app.morphe.library.installation.installer.*
 import app.morphe.patcher.Patcher
 import app.morphe.patcher.PatcherConfig
@@ -405,9 +403,6 @@ internal object PatchCommand : Callable<Int> {
     private var updateOptions: Boolean = false
 
     override fun call(): Int {
-        // Check for any newer version
-        UpdateChecker.check(logger)?.let { logger.info(it) }
-
         // region Setup
 
         val outputFilePath =
@@ -555,11 +550,7 @@ internal object PatchCommand : Callable<Int> {
                     patcherTemporaryFilesPath.absolutePath,
                     useArsclib = if (aaptBinaryPath != null) { false } else { !forceApktool },
                     keepArchitectures = keepArchitectures,
-                    /*
-                    TODO: Remove Windows override once the patcher ships its proper fix
-                     (reflection-based MappedByteBuffer release + copy-instead-of-rename for output DEX files).
-                     */
-                    useBytecodeMode = if (isWindows()) { BytecodeMode.FULL } else { bytecodeMode },
+                    useBytecodeMode = bytecodeMode,
                     verifier = verifier
                 ),
             ).use { patcher ->

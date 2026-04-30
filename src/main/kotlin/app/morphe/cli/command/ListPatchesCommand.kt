@@ -23,7 +23,7 @@ import app.morphe.patcher.patch.Option as PatchOption
 
 @Command(
     name = "list-patches",
-    description = ["List patches from supplied MPP files."],
+    description = ["Path to a MPP file or a GitHub repo url such as https://github.com/MorpheApp/morphe-patches"],
 )
 internal object ListPatchesCommand : Runnable {
     private val logger = Logger.getLogger(this::class.java.name)
@@ -31,10 +31,11 @@ internal object ListPatchesCommand : Runnable {
     // Patches is now flag based rather than position based
     @Option(
         names = ["--patches"],
-        description = ["Path to a MPP file or a GitHub repo url such as https://github.com/MorpheApp/morphe-patches"],
+        description = ["One or more paths to MPP files."],
         arity = "1..*",
         required = true
     )
+
     @Suppress("unused")
     private fun setPatchesFile(patchesFiles: Set<File>) {
         this.patchesFiles = checkFileExistsOrIsUrl(patchesFiles, spec)
@@ -179,7 +180,6 @@ internal object ListPatchesCommand : Runnable {
             compatiblePackages?.any { (compatiblePackageName, _) ->
                 compatiblePackageName == name
             } ?: withUniversalPatches
-
 
         val temporaryFilesPath = temporaryFilesPath ?: File("").absoluteFile.resolve("morphe-temporary-files")
 
