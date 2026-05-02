@@ -21,6 +21,7 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.HorizontalScrollbar
+import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,6 +70,7 @@ import app.morphe.gui.ui.components.morpheScrollbarStyle
 import app.morphe.gui.ui.screens.home.components.ApkInfoCard
 import app.morphe.gui.ui.screens.home.components.FullScreenDropZone
 import app.morphe.gui.ui.components.OfflineBanner
+import app.morphe.gui.ui.components.UpdateBanner
 import app.morphe.gui.ui.screens.patches.PatchesScreen
 import app.morphe.gui.ui.screens.patches.PatchSelectionScreen
 import app.morphe.gui.util.DownloadUrlResolver.openUrlAndFollowRedirects
@@ -182,7 +184,8 @@ fun HomeScreenContent(
                         uiState = uiState,
                         isSmall = isSmall,
                         onChangePatchesClick = onChangePatchesClick,
-                        onRetry = onRetry
+                        onRetry = onRetry,
+                        onUpdateChannelChanged = { viewModel.refreshUpdateCheck() },
                     )
                 } else {
                     Spacer(modifier = Modifier.height(if (isSmall) 8.dp else 16.dp))
@@ -192,12 +195,10 @@ fun HomeScreenContent(
                         Spacer(modifier = Modifier.height(if (isSmall) 8.dp else 12.dp))
                         PatchesVersionCard(
                             patchesVersion = uiState.patchesVersion!!,
-                            isLatest = uiState.isUsingLatestPatches,
+                            latestLabel = uiState.latestPatchesLabel,
                             onChangePatchesClick = onChangePatchesClick,
                             patchSourceName = uiState.patchSourceName,
-                            isCompact = isCompact,
-                            modifier = Modifier
-                                .padding(horizontal = if (isCompact) 8.dp else 16.dp)
+                            isCompact = isCompact
                         )
                     } else if (uiState.isLoadingPatches) {
                         Spacer(modifier = Modifier.height(if (isSmall) 8.dp else 12.dp))
@@ -206,11 +207,9 @@ fun HomeScreenContent(
                         Spacer(modifier = Modifier.height(if (isSmall) 8.dp else 12.dp))
                         PatchesVersionCard(
                             patchesVersion = "NOT LOADED",
-                            isLatest = false,
+                            latestLabel = null,
                             onChangePatchesClick = onChangePatchesClick,
-                            isCompact = isCompact,
-                            modifier = Modifier
-                                .padding(horizontal = if (isCompact) 8.dp else 16.dp)
+                            isCompact = isCompact
                         )
                     }
 
@@ -272,7 +271,8 @@ fun HomeScreenContent(
                             uiState = uiState,
                             isSmall = isSmall,
                             onChangePatchesClick = onChangePatchesClick,
-                            onRetry = onRetry
+                            onRetry = onRetry,
+                            onUpdateChannelChanged = { viewModel.refreshUpdateCheck() },
                         )
                     } else {
                         Column(
@@ -286,11 +286,9 @@ fun HomeScreenContent(
                                 Spacer(modifier = Modifier.height(if (isSmall) 8.dp else 12.dp))
                                 PatchesVersionCard(
                                     patchesVersion = uiState.patchesVersion!!,
-                                    isLatest = uiState.isUsingLatestPatches,
+                                    latestLabel = uiState.latestPatchesLabel,
                                     onChangePatchesClick = onChangePatchesClick,
-                                    isCompact = isCompact,
-                                    modifier = Modifier
-                                        .padding(horizontal = if (isCompact) 8.dp else 16.dp)
+                                    isCompact = isCompact
                                 )
                             } else if (uiState.isLoadingPatches) {
                                 Spacer(modifier = Modifier.height(if (isSmall) 8.dp else 12.dp))
@@ -299,11 +297,9 @@ fun HomeScreenContent(
                                 Spacer(modifier = Modifier.height(if (isSmall) 8.dp else 12.dp))
                                 PatchesVersionCard(
                                     patchesVersion = "NOT LOADED",
-                                    isLatest = false,
+                                    latestLabel = null,
                                     onChangePatchesClick = onChangePatchesClick,
-                                    isCompact = isCompact,
-                                    modifier = Modifier
-                                        .padding(horizontal = if (isCompact) 8.dp else 16.dp)
+                                    isCompact = isCompact
                                 )
                             }
 
@@ -336,6 +332,17 @@ fun HomeScreenContent(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = if (pinSupportedAppsToBottom) Arrangement.SpaceBetween else Arrangement.Top
                         ) {
+                            if (uiState.showUpdateBanner) {
+                                UpdateBanner(
+                                    info = uiState.updateInfo!!,
+                                    onDismissForSession = { viewModel.dismissUpdateForSession() },
+                                    onDismissForVersion = { viewModel.dismissUpdateForVersion() },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = padding, end = padding, top = 8.dp)
+                                )
+                            }
+
                             // ── Main workspace area ──
                             Box(
                                 modifier = Modifier
@@ -373,6 +380,17 @@ fun HomeScreenContent(
                                 )
                             }
                         }
+
+                        // Show scrollbar only when content overflows
+                        if (scrollState.maxValue > 0) {
+                            VerticalScrollbar(
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .fillMaxHeight(),
+                                adapter = rememberScrollbarAdapter(scrollState),
+                                style = morpheScrollbarStyle()
+                            )
+                        }
                     }
                 }
 
@@ -382,7 +400,8 @@ fun HomeScreenContent(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .padding(top = padding, end = padding),
-                        allowCacheClear = true
+                        allowCacheClear = true,
+                        onUpdateChannelChanged = { viewModel.refreshUpdateCheck() },
                     )
                 }
 
@@ -433,7 +452,8 @@ private fun HeaderBar(
     uiState: HomeUiState,
     isSmall: Boolean,
     onChangePatchesClick: () -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    onUpdateChannelChanged: () -> Unit = {},
 ) {
     val mono = LocalMorpheFont.current
     val borderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.10f)
@@ -478,7 +498,7 @@ private fun HeaderBar(
                 if (!uiState.isLoadingPatches && uiState.patchesVersion != null) {
                     PatchesVersionInline(
                         patchesVersion = uiState.patchesVersion!!,
-                        isLatest = uiState.isUsingLatestPatches,
+                        latestLabel = uiState.latestPatchesLabel,
                         onChangePatchesClick = onChangePatchesClick,
                         patchSourceName = uiState.patchSourceName
                     )
@@ -487,7 +507,7 @@ private fun HeaderBar(
                 } else if (uiState.patchLoadError != null) {
                     PatchesVersionInline(
                         patchesVersion = "NOT LOADED",
-                        isLatest = false,
+                        latestLabel = null,
                         onChangePatchesClick = onChangePatchesClick
                     )
                 }
@@ -507,7 +527,10 @@ private fun HeaderBar(
                 .padding(end = 12.dp)
                 .onSizeChanged { trailingWidthPx = it.width }
         ) {
-            TopBarRow(allowCacheClear = true)
+            TopBarRow(
+                allowCacheClear = true,
+                onUpdateChannelChanged = onUpdateChannelChanged,
+            )
         }
     }
 }
@@ -518,7 +541,7 @@ private fun HeaderBar(
 @Composable
 private fun PatchesVersionInline(
     patchesVersion: String,
-    isLatest: Boolean,
+    latestLabel: String?,
     onChangePatchesClick: () -> Unit,
     patchSourceName: String? = null
 ) {
@@ -532,40 +555,44 @@ private fun PatchesVersionInline(
         animationSpec = tween(200)
     )
 
-    Row(
+    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+    androidx.compose.foundation.layout.FlowRow(
         modifier = Modifier
-            .height(34.dp)
+            .heightIn(min = 34.dp)
             .clip(RoundedCornerShape(corners.small))
             .border(1.dp, borderColor, RoundedCornerShape(corners.small))
             .background(MaterialTheme.colorScheme.surface)
             .hoverable(hoverInteraction)
             .clickable(onClick = onChangePatchesClick)
-            .padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(start = 8.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        itemVerticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = patchSourceName?.uppercase() ?: "PATCHES",
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = mono,
-            color = homeMutedTextColor(0.4f),
-            letterSpacing = 1.5.sp
-        )
-        Text(
-            text = " · ",
-            fontSize = 10.sp,
-            fontFamily = mono,
-            color = homeMutedTextColor(0.25f)
-        )
-        Text(
-            text = patchesVersion,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            fontFamily = mono,
-            color = homeAccentTextColor(accents.primary)
-        )
-        if (isLatest) {
-            Spacer(modifier = Modifier.width(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = patchSourceName?.uppercase() ?: "PATCHES",
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = mono,
+                color = homeMutedTextColor(0.4f),
+                letterSpacing = 1.5.sp
+            )
+            Text(
+                text = " · ",
+                fontSize = 10.sp,
+                fontFamily = mono,
+                color = homeMutedTextColor(0.25f)
+            )
+            Text(
+                text = patchesVersion,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = mono,
+                color = homeAccentTextColor(accents.primary)
+            )
+        }
+        if (latestLabel != null) {
             Box(
                 modifier = Modifier
                     .background(accents.secondary.copy(alpha = 0.1f), RoundedCornerShape(corners.small))
@@ -573,7 +600,7 @@ private fun PatchesVersionInline(
                     .padding(horizontal = 5.dp, vertical = 1.dp)
             ) {
                 Text(
-                    text = "LATEST",
+                    text = latestLabel,
                     fontSize = 8.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = mono,
@@ -1226,7 +1253,7 @@ private fun homeAccentTextColor(accent: Color): Color {
 @Composable
 private fun PatchesVersionCard(
     patchesVersion: String,
-    isLatest: Boolean,
+    latestLabel: String?,
     onChangePatchesClick: () -> Unit,
     patchSourceName: String? = null,
     isCompact: Boolean = false,
@@ -1283,7 +1310,7 @@ private fun PatchesVersionCard(
                     fontFamily = mono,
                     color = accents.primary
                 )
-                if (isLatest) {
+                if (latestLabel != null) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Box(
                         modifier = Modifier
@@ -1292,7 +1319,7 @@ private fun PatchesVersionCard(
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = "LATEST",
+                            text = latestLabel,
                             fontSize = 8.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = mono,
