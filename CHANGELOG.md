@@ -1,3 +1,10 @@
+# [1.8.0-dev.10](https://github.com/MorpheApp/morphe-cli/compare/v1.8.0-dev.9...v1.8.0-dev.10) (2026-05-02)
+
+
+### Features
+
+* UI improvements and fixes ([#128](https://github.com/MorpheApp/morphe-cli/issues/128)) ([980ebac](https://github.com/MorpheApp/morphe-cli/commit/980ebacceb073a00ea4b6b011550b73c94f9cc30))
+
 # [1.8.0-dev.9](https://github.com/MorpheApp/morphe-cli/compare/v1.8.0-dev.8...v1.8.0-dev.9) (2026-04-29)
 
 
