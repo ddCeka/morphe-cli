@@ -1,3 +1,31 @@
+# [1.8.0-dev.13](https://github.com/MorpheApp/morphe-cli/compare/v1.8.0-dev.12...v1.8.0-dev.13) (2026-05-04)
+
+
+### Bug Fixes
+
+* ARSCLib libraries are excluded during minimization ([2714ab5](https://github.com/MorpheApp/morphe-cli/commit/2714ab52d934380b665c396b02b079bc6e3d89be))
+
+# [1.8.0-dev.12](https://github.com/MorpheApp/morphe-cli/compare/v1.8.0-dev.11...v1.8.0-dev.12) (2026-05-04)
+
+
+### Bug Fixes
+
+* ARSCLib libraries are not included in minimized fat jar ([5dce038](https://github.com/MorpheApp/morphe-cli/commit/5dce03815fea09525a992ce2cc1df30b421a818f))
+
+# [1.8.0-dev.11](https://github.com/MorpheApp/morphe-cli/compare/v1.8.0-dev.10...v1.8.0-dev.11) (2026-05-03)
+
+
+### Bug Fixes
+
+* Update to patcher 1.5.1 ([d7c5036](https://github.com/MorpheApp/morphe-cli/commit/d7c5036398867cd037a4d116d71b5162fc17d65a))
+
+# [1.8.0-dev.10](https://github.com/MorpheApp/morphe-cli/compare/v1.8.0-dev.9...v1.8.0-dev.10) (2026-05-02)
+
+
+### Features
+
+* UI improvements and fixes ([#128](https://github.com/MorpheApp/morphe-cli/issues/128)) ([980ebac](https://github.com/MorpheApp/morphe-cli/commit/980ebacceb073a00ea4b6b011550b73c94f9cc30))
+
 # [1.8.0-dev.9](https://github.com/MorpheApp/morphe-cli/compare/v1.8.0-dev.8...v1.8.0-dev.9) (2026-04-29)
 
 

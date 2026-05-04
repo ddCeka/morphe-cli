@@ -95,6 +95,7 @@ tasks {
         )
         minimize {
             exclude(dependency("org.bouncycastle:.*"))
+            exclude(dependency("com.github.REAndroid:ARSCLib"))
             exclude(dependency("app.morphe:morphe-patcher"))
         }
     }
