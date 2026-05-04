@@ -15,7 +15,6 @@ rootProject.name = "morphe-cli"
 
 // Include morphe-patcher and morphe-library as composite builds if they exist locally
 mapOf(
-    "ARSCLib" to "com.github.MorpheApp:ARSCLib",
     "morphe-patcher" to "app.morphe:morphe-patcher",
     "morphe-library" to "app.morphe:morphe-library",
 ).forEach { (libraryPath, libraryName) ->
