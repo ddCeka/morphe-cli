@@ -1,3 +1,10 @@
+# [1.8.0-dev.12](https://github.com/MorpheApp/morphe-cli/compare/v1.8.0-dev.11...v1.8.0-dev.12) (2026-05-04)
+
+
+### Bug Fixes
+
+* ARSCLib libraries are not included in minimized fat jar ([5dce038](https://github.com/MorpheApp/morphe-cli/commit/5dce03815fea09525a992ce2cc1df30b421a818f))
+
 # [1.8.0-dev.11](https://github.com/MorpheApp/morphe-cli/compare/v1.8.0-dev.10...v1.8.0-dev.11) (2026-05-03)
 
 
