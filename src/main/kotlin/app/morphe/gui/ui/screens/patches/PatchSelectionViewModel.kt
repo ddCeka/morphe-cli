@@ -11,6 +11,8 @@ import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import app.morphe.gui.data.model.Patch
 import app.morphe.gui.data.model.PatchConfig
+import app.morphe.gui.data.repository.ConfigRepository
+import app.morphe.gui.data.repository.PatchPreferencesRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,6 +20,7 @@ import kotlinx.coroutines.launch
 import app.morphe.gui.util.Logger
 import app.morphe.gui.util.PatchService
 import app.morphe.gui.data.repository.PatchRepository
+import app.morphe.gui.util.FileUtils.ANDROID_ARCHITECTURES
 import app.morphe.patcher.resource.CpuArchitecture
 import java.io.File
 
@@ -29,20 +32,37 @@ class PatchSelectionViewModel(
     private val apkArchitectures: List<String>,
     private val patchService: PatchService,
     private val patchRepository: PatchRepository,
+    private val configRepository: ConfigRepository,
+    private val preferencesRepository: PatchPreferencesRepository,
+    private val patchSourceName: String,
     private val localPatchFilePath: String? = null
 ) : ScreenModel {
 
     // Actual path to use - may differ from patchesFilePath if we had to re-download
     private var actualPatchesFilePath: String = patchesFilePath
 
+    // User-configured output folder; null means save next to the input APK.
+    private var defaultOutputDirectory: String? = null
+
     private val _uiState = MutableStateFlow(PatchSelectionUiState(
         apkArchitectures = apkArchitectures,
-        selectedArchitectures = apkArchitectures.toSet()
+        stripLibsStatus = computeStripLibsStatus(apkArchitectures, ANDROID_ARCHITECTURES)
     ))
     val uiState: StateFlow<PatchSelectionUiState> = _uiState.asStateFlow()
 
     init {
         loadPatches()
+        loadStripLibsPreference()
+    }
+
+    private fun loadStripLibsPreference() {
+        screenModelScope.launch {
+            val config = configRepository.loadConfig()
+            defaultOutputDirectory = config.defaultOutputDirectory
+            _uiState.value = _uiState.value.copy(
+                stripLibsStatus = computeStripLibsStatus(apkArchitectures, config.keepArchitectures)
+            )
+        }
     }
 
     fun getApkPath(): String = apkPath
@@ -80,17 +100,53 @@ class PatchSelectionViewModel(
 
                     Logger.info("Loaded ${deduplicatedPatches.size} patches for $packageName")
 
-                    // Only select patches that are enabled by default in the .mpp file
+                    // Compute the .mpp's default selection (patches with use=true)
                     val defaultSelected = deduplicatedPatches
                         .filter { it.isEnabled }
                         .map { it.uniqueId }
                         .toSet()
 
+                    // If a saved selection exists for this source+package, silently apply it.
+                    // Otherwise fall back to .mpp defaults.
+                    val savedBundle = preferencesRepository.get(patchSourceName, packageName)
+                    val (initialSelected, savedOptions) = if (savedBundle != null) {
+                        val byName = deduplicatedPatches.associateBy { it.name }
+                        val selected = savedBundle.patches
+                            .filter { (_, entry) -> entry.enabled }
+                            .keys
+                            .mapNotNull { byName[it]?.uniqueId }
+                            .toSet()
+                        // Materialize saved option values into the patchOptionValues map
+                        // (which is keyed "patchName.optionKey" → string).
+                        val opts = mutableMapOf<String, String>()
+                        for ((patchName, entry) in savedBundle.patches) {
+                            for ((optKey, jsonValue) in entry.options) {
+                                opts["$patchName.$optKey"] = jsonValue.toString().trim('"')
+                            }
+                        }
+                        Logger.info("Applied saved patch preferences for $patchSourceName / $packageName")
+                        selected to opts.toMap()
+                    } else {
+                        defaultSelected to emptyMap<String, String>()
+                    }
+
+                    val savedSelectedIds: Set<String>? = if (savedBundle != null) {
+                        val byName = deduplicatedPatches.associateBy { it.name }
+                        savedBundle.patches
+                            .filter { (_, entry) -> entry.enabled }
+                            .keys
+                            .mapNotNull { byName[it]?.uniqueId }
+                            .toSet()
+                    } else null
+
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         allPatches = deduplicatedPatches,
                         filteredPatches = deduplicatedPatches,
-                        selectedPatches = defaultSelected
+                        selectedPatches = initialSelected,
+                        patchOptionValues = savedOptions,
+                        hasSavedSelection = savedBundle != null,
+                        savedSelectedIds = savedSelectedIds
                     )
                 },
                 onFailure = { e ->
@@ -115,12 +171,49 @@ class PatchSelectionViewModel(
     }
 
     fun selectAll() {
-        val allIds = _uiState.value.filteredPatches.map { it.uniqueId }.toSet()
+        val allIds = _uiState.value.allPatches.map { it.uniqueId }.toSet()
         _uiState.value = _uiState.value.copy(selectedPatches = allIds)
     }
 
     fun deselectAll() {
         _uiState.value = _uiState.value.copy(selectedPatches = emptySet())
+    }
+
+    /**
+     * Reset the selection to the .mpp's per-patch `use=true/false` defaults.
+     */
+    fun applyPatchDefaults() {
+        val defaults = _uiState.value.allPatches
+            .filter { it.isEnabled }
+            .map { it.uniqueId }
+            .toSet()
+        _uiState.value = _uiState.value.copy(selectedPatches = defaults)
+    }
+
+    /**
+     * Apply the user's previously-saved selection for this source+package, if any.
+     * No-op if no saved selection exists.
+     */
+    fun applySavedDefaults() {
+        screenModelScope.launch {
+            val saved = preferencesRepository.get(patchSourceName, packageName) ?: return@launch
+            val byName = _uiState.value.allPatches.associateBy { it.name }
+            val selected = saved.patches
+                .filter { (_, entry) -> entry.enabled }
+                .keys
+                .mapNotNull { byName[it]?.uniqueId }
+                .toSet()
+            val opts = mutableMapOf<String, String>()
+            for ((patchName, entry) in saved.patches) {
+                for ((optKey, jsonValue) in entry.options) {
+                    opts["$patchName.$optKey"] = jsonValue.toString().trim('"')
+                }
+            }
+            _uiState.value = _uiState.value.copy(
+                selectedPatches = selected,
+                patchOptionValues = opts
+            )
+        }
     }
 
     fun setSearchQuery(query: String) {
@@ -159,16 +252,12 @@ class PatchSelectionViewModel(
         _uiState.value = _uiState.value.copy(error = null)
     }
 
-    fun toggleArchitecture(arch: String) {
-        val current = _uiState.value.selectedArchitectures
-        // Don't allow deselecting all architectures
-        if (current.contains(arch) && current.size <= 1) return
-        val newSelection = if (current.contains(arch)) {
-            current - arch
-        } else {
-            current + arch
-        }
-        _uiState.value = _uiState.value.copy(selectedArchitectures = newSelection)
+    /**
+     * Recompute strip-libs status from the latest settings. Called when the user
+     * closes the Settings dialog so the banner stays in sync with preference edits.
+     */
+    fun refreshStripLibsStatus() {
+        loadStripLibsPreference()
     }
 
     /**
@@ -200,11 +289,57 @@ class PatchSelectionViewModel(
         return _uiState.value.allPatches.count { !it.isEnabled }
     }
 
+    /**
+     * Persist the current selection + option values as the user's saved preference
+     * for this source+package. Called from createPatchConfig (auto-save on Patch click).
+     */
+    private fun saveCurrentSelection() {
+        val state = _uiState.value
+        val enabledNames = state.allPatches
+            .filter { state.selectedPatches.contains(it.uniqueId) }
+            .map { it.name }
+            .toSet()
+        val disabledNames = state.allPatches
+            .filter { !state.selectedPatches.contains(it.uniqueId) }
+            .map { it.name }
+            .toSet()
+
+        // Group "patchName.optionKey" -> JsonElement under each patch name.
+        val grouped = mutableMapOf<String, MutableMap<String, kotlinx.serialization.json.JsonElement>>()
+        for ((compoundKey, value) in state.patchOptionValues) {
+            val dotIdx = compoundKey.indexOf('.')
+            if (dotIdx <= 0) continue
+            val patchName = compoundKey.substring(0, dotIdx)
+            val optKey = compoundKey.substring(dotIdx + 1)
+            grouped.getOrPut(patchName) { mutableMapOf() }[optKey] =
+                kotlinx.serialization.json.JsonPrimitive(value)
+        }
+
+        screenModelScope.launch {
+            preferencesRepository.save(
+                sourceName = patchSourceName,
+                packageName = packageName,
+                enabledPatchNames = enabledNames,
+                disabledPatchNames = disabledNames,
+                options = grouped
+            )
+            // After saving, the live selection IS the saved selection — so update
+            // the snapshot so the "YOUR DEFAULTS" chip stays highlighted post-patch.
+            _uiState.value = _uiState.value.copy(
+                hasSavedSelection = true,
+                savedSelectedIds = state.selectedPatches
+            )
+        }
+    }
+
     fun createPatchConfig(continueOnError: Boolean = false): PatchConfig {
-        // Create app folder in the same location as the input APK
+        // Auto-save the current selection as the user's "Your Defaults" before patching.
+        saveCurrentSelection()
+
         val inputFile = File(apkPath)
         val appFolderName = apkName.replace(" ", "-")
-        val outputDir = File(inputFile.parentFile, appFolderName)
+        val baseOutputDir = defaultOutputDirectory?.let { File(it) } ?: inputFile.parentFile
+        val outputDir = File(baseOutputDir, appFolderName)
         outputDir.mkdirs()
 
         // Extract version from APK filename and patches version for output name
@@ -223,17 +358,14 @@ class PatchSelectionViewModel(
             .filter { !_uiState.value.selectedPatches.contains(it.uniqueId) }
             .map { it.name }
 
-        // Only set striplibs if user deselected any architecture (keeps = selected ones).
-        // Note: selectedArchitectures stores display strings like "arm64-v8a" (with
-        // hyphens), so use valueOfOrNull which matches against the enum's `.arch`
-        // property — plain valueOf() only accepts the underscored Kotlin constant name.
-        val striplibs = if (_uiState.value.selectedArchitectures.size < apkArchitectures.size && apkArchitectures.size > 1) {
-            _uiState.value.selectedArchitectures
-                .mapNotNull { CpuArchitecture.valueOfOrNull(it) }
-                .toSet()
-        } else {
-            emptySet()
-        }
+        // Only ship a non-empty keepArchitectures set when the current status actually
+        // prescribes stripping. All other states (no native libs, universal, keep-all,
+        // fallback) → empty set → patcher leaves native libs untouched.
+        val keepArches = (uiState.value.stripLibsStatus as? StripLibsStatus.WillStrip)
+            ?.keeping
+            ?.mapNotNull { CpuArchitecture.valueOfOrNull(it) }
+            ?.toSet()
+            ?: emptySet()
 
         return PatchConfig(
             inputApkPath = apkPath,
@@ -243,7 +375,7 @@ class PatchSelectionViewModel(
             disabledPatches = disabledPatchNames,
             patchOptions = _uiState.value.patchOptionValues,
             useExclusiveMode = true,
-            keepArchitectures = striplibs,
+            keepArchitectures = keepArches,
             continueOnError = continueOnError
         )
     }
@@ -297,12 +429,10 @@ class PatchSelectionViewModel(
         // Use whichever produces fewer flags
         val useExclusive = selectedPatchNames.size <= disabledPatchNames.size
 
-        // striplibs flag: only when user deselected at least one architecture
-        val striplibsArg = if (_uiState.value.selectedArchitectures.size < apkArchitectures.size && apkArchitectures.size > 1) {
-            _uiState.value.selectedArchitectures.joinToString(",")
-        } else {
-            null
-        }
+        // striplibs flag: only when the computed status prescribes actual stripping
+        val striplibsArg = (uiState.value.stripLibsStatus as? StripLibsStatus.WillStrip)
+            ?.keeping
+            ?.joinToString(",")
 
         // Keystore flags (only if custom keystore is set)
         val hasCustomKeystore = keystorePath != null
@@ -435,9 +565,99 @@ data class PatchSelectionUiState(
     val showOnlySelected: Boolean = false,
     val error: String? = null,
     val apkArchitectures: List<String> = emptyList(),
-    val selectedArchitectures: Set<String> = emptySet(),
-    val patchOptionValues: Map<String, String> = emptyMap()
+    val stripLibsStatus: StripLibsStatus = StripLibsStatus.NoNativeLibs,
+    val patchOptionValues: Map<String, String> = emptyMap(),
+    val hasSavedSelection: Boolean = false,
+    /** Snapshot of the saved-bundle's selected uniqueIds — used to highlight the
+     *  Your Defaults chip whenever the live selection happens to match. Null when
+     *  no saved selection exists. */
+    val savedSelectedIds: Set<String>? = null
 ) {
     val selectedCount: Int get() = selectedPatches.size
     val totalCount: Int get() = allPatches.size
+
+    /**
+     * Which preset (if any) the current selection matches. Drives chip highlighting:
+     * the chip whose mode equals `activeSelectionMode` gets the accent border + tint.
+     * SAVED is checked first so when the saved set happens to also be ALL or DEFAULTS,
+     * we still attribute the highlight to the user's saved preference.
+     */
+    val activeSelectionMode: SelectionMode get() {
+        if (allPatches.isEmpty()) return SelectionMode.CUSTOM
+        val all = allPatches.map { it.uniqueId }.toSet()
+        val defaults = allPatches.filter { it.isEnabled }.map { it.uniqueId }.toSet()
+        return when {
+            savedSelectedIds != null && selectedPatches == savedSelectedIds -> SelectionMode.SAVED
+            selectedPatches.isEmpty() -> SelectionMode.NONE
+            selectedPatches == all -> SelectionMode.ALL
+            selectedPatches == defaults -> SelectionMode.DEFAULTS
+            else -> SelectionMode.CUSTOM
+        }
+    }
+}
+
+enum class SelectionMode { ALL, DEFAULTS, SAVED, NONE, CUSTOM }
+
+/**
+ * What the strip-libs feature will do for the currently loaded APK given the
+ * user's global keep-list preference. Computed by `computeStripLibsStatus`.
+ */
+sealed class StripLibsStatus {
+    /** APK ships no native libraries — stripping is meaningless. */
+    data object NoNativeLibs : StripLibsStatus()
+
+    /** APK ships a single `universal` native lib folder — stripping does not apply. */
+    data object Universal : StripLibsStatus()
+
+    /**
+     * User's keep-list covers every arch in the APK — nothing to strip. `notInApk`
+     * holds any extra arches in the user's keep list that don't appear in the APK,
+     * so the banner can surface "your preference for X has no effect here".
+     */
+    data class KeepAll(val notInApk: List<String>) : StripLibsStatus()
+
+    /** User's keep-list doesn't overlap with the APK's arches — skip stripping as a safety fallback. */
+    data class Fallback(val apkArches: List<String>) : StripLibsStatus()
+
+    /**
+     * Partial overlap — patcher will keep `keeping` and strip `stripping`. `notInApk`
+     * lists arches the user selected that this APK doesn't ship, so the banner can
+     * tell the user which of their preferences actually affect this APK.
+     */
+    data class WillStrip(
+        val keeping: List<String>,
+        val stripping: List<String>,
+        val notInApk: List<String>
+    ) : StripLibsStatus()
+}
+
+/**
+ * Decide what strip-libs should do given the APK's native arches and the user's
+ * global keep-list preference. Pure function — no I/O, no side effects — so the
+ * same inputs always produce the same output. Used by both the informational
+ * banner in PatchSelectionScreen and by createPatchConfig when dispatching to
+ * the patcher, guaranteeing UI and behavior stay in sync.
+ */
+internal fun computeStripLibsStatus(
+    apkArches: List<String>,
+    userKeep: Set<String>
+): StripLibsStatus {
+    if (apkArches.isEmpty()) return StripLibsStatus.NoNativeLibs
+    if (apkArches.size == 1 && apkArches[0].equals("universal", ignoreCase = true)) {
+        return StripLibsStatus.Universal
+    }
+
+    val apkSet = apkArches.toSet()
+    val overlap = apkSet.intersect(userKeep)
+    val notInApk = userKeep.filter { it !in apkSet }
+
+    return when {
+        overlap.isEmpty() -> StripLibsStatus.Fallback(apkArches)
+        overlap == apkSet -> StripLibsStatus.KeepAll(notInApk = notInApk)
+        else -> StripLibsStatus.WillStrip(
+            keeping = apkArches.filter { it in overlap },
+            stripping = apkArches.filter { it !in overlap },
+            notInApk = notInApk
+        )
+    }
 }

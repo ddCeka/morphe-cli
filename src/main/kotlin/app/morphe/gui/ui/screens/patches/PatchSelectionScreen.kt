@@ -26,8 +26,12 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.PlaylistRemove
+import androidx.compose.material.icons.filled.RemoveDone
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -52,7 +56,9 @@ import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 import app.morphe.gui.ui.components.ErrorDialog
 import app.morphe.gui.ui.components.DeviceIndicator
+import app.morphe.gui.ui.components.MorpheSwitch
 import app.morphe.gui.ui.components.SettingsButton
+import app.morphe.gui.ui.components.morpheScrollbarStyle
 import app.morphe.gui.ui.components.getErrorType
 import app.morphe.gui.ui.components.getFriendlyErrorMessage
 import app.morphe.gui.ui.screens.patching.PatchingScreen
@@ -211,41 +217,6 @@ fun PatchSelectionScreenContent(viewModel: PatchSelectionViewModel) {
                 )
             }
 
-            // Select/Deselect all
-            val selectAllHover = remember { MutableInteractionSource() }
-            val isSelectAllHovered by selectAllHover.collectIsHoveredAsState()
-            val allSelected = uiState.selectedPatches.size == uiState.allPatches.size
-            val selectAllBorder by animateColorAsState(
-                if (isSelectAllHovered) accents.primary.copy(alpha = 0.4f)
-                else MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
-                animationSpec = tween(150)
-            )
-
-            Box(
-                modifier = Modifier
-                    .height(34.dp)
-                    .hoverable(selectAllHover)
-                    .clip(RoundedCornerShape(corners.small))
-                    .border(1.dp, selectAllBorder, RoundedCornerShape(corners.small))
-                    .clickable {
-                        if (allSelected) viewModel.deselectAll() else viewModel.selectAll()
-                    }
-                    .padding(horizontal = 12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (allSelected) "DESELECT ALL" else "SELECT ALL",
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFamily = mono,
-                    color = if (isSelectAllHovered) accents.primary
-                            else accents.primary.copy(alpha = 0.7f),
-                    letterSpacing = 1.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.width(6.dp))
-
             // Command preview toggle
             if (!uiState.isLoading && uiState.allPatches.isNotEmpty()) {
                 val cmdHover = remember { MutableInteractionSource() }
@@ -341,12 +312,15 @@ fun PatchSelectionScreenContent(viewModel: PatchSelectionViewModel) {
 
             DeviceIndicator()
             Spacer(modifier = Modifier.width(6.dp))
-            SettingsButton(allowCacheClear = false)
+            SettingsButton(
+                allowCacheClear = false,
+                onDismiss = { viewModel.refreshStripLibsStatus() }
+            )
         }
 
         // Command preview — collapsible
         if (!uiState.isLoading && uiState.allPatches.isNotEmpty()) {
-            val commandPreview = remember(uiState.selectedPatches, uiState.selectedArchitectures, cleanMode, continueOnError, keystorePath) {
+            val commandPreview = remember(uiState.selectedPatches, uiState.stripLibsStatus, cleanMode, continueOnError, keystorePath) {
                 viewModel.getCommandPreview(cleanMode, continueOnError, keystorePath, keystorePassword, keystoreAlias, keystoreEntryPassword)
             }
             AnimatedVisibility(
@@ -376,21 +350,20 @@ fun PatchSelectionScreenContent(viewModel: PatchSelectionViewModel) {
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
         )
 
-        // Info card about default-disabled patches
-        val defaultDisabledCount = remember(uiState.allPatches) {
-            viewModel.getDefaultDisabledCount()
-        }
-        var infoDismissed by remember { mutableStateOf(false) }
-
+        // Selection-mode chips: Your Defaults · Patch Defaults · All · None
         AnimatedVisibility(
-            visible = defaultDisabledCount > 0 && !infoDismissed && !uiState.isLoading,
+            visible = !uiState.isLoading && uiState.allPatches.isNotEmpty(),
             enter = expandVertically(),
             exit = shrinkVertically()
         ) {
-            DefaultDisabledInfoCard(
-                count = defaultDisabledCount,
-                onDismiss = { infoDismissed = true },
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            SelectionModeChips(
+                hasSavedSelection = uiState.hasSavedSelection,
+                activeMode = uiState.activeSelectionMode,
+                onApplySaved = { viewModel.applySavedDefaults() },
+                onApplyDefaults = { viewModel.applyPatchDefaults() },
+                onApplyAll = { viewModel.selectAll() },
+                onApplyNone = { viewModel.deselectAll() },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
             )
         }
 
@@ -447,21 +420,15 @@ fun PatchSelectionScreenContent(viewModel: PatchSelectionViewModel) {
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        // TODO: Enable the strip libs feature here after patcher's X issue is fixed.
-                        // Architecture selector. Disabled for split APK bundles for now. Maybe we enable in the future?
-//                        val isBundleFormat = viewModel.getApkPath().lowercase().let { it.endsWith(".apkm") || it.endsWith(".xapk") || it.endsWith(".apks") }
-//                        val showArchSelector = !isBundleFormat &&
-//                                uiState.apkArchitectures.size > 1 &&
-//                                !(uiState.apkArchitectures.size == 1 && uiState.apkArchitectures[0] == "universal")
-//                        if (showArchSelector) {
-//                            item(key = "arch_selector") {
-//                                ArchitectureSelectorCard(
-//                                    architectures = uiState.apkArchitectures,
-//                                    selectedArchitectures = uiState.selectedArchitectures,
-//                                    onToggleArchitecture = { viewModel.toggleArchitecture(it) }
-//                                )
-//                            }
-//                        }
+                        // Strip-libs status banner. Purely informational — the user
+                        // configures their keep-list in Settings, and this banner
+                        // reports what will happen to native libs for the current APK.
+                        val showBanner = uiState.stripLibsStatus !is StripLibsStatus.NoNativeLibs
+                        if (showBanner) {
+                            item(key = "strip_libs_banner") {
+                                StripLibsStatusBanner(status = uiState.stripLibsStatus)
+                            }
+                        }
 
                         items(
                             items = uiState.filteredPatches,
@@ -483,7 +450,8 @@ fun PatchSelectionScreenContent(viewModel: PatchSelectionViewModel) {
 
                     androidx.compose.foundation.VerticalScrollbar(
                         modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
-                        adapter = androidx.compose.foundation.rememberScrollbarAdapter(lazyListState)
+                        adapter = androidx.compose.foundation.rememberScrollbarAdapter(lazyListState),
+                        style = morpheScrollbarStyle()
                     )
                 }
 
@@ -978,15 +946,13 @@ private fun PatchOptionEditor(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Switch(
+                    MorpheSwitch(
                         checked = localChecked,
                         onCheckedChange = { newChecked ->
                             localChecked = newChecked
                             onValueChange(newChecked.toString())
                         },
-                        colors = SwitchDefaults.colors(
-                            checkedTrackColor = accents.secondary
-                        )
+                        accentColor = accents.secondary
                     )
                     Text(
                         text = if (localChecked) "Enabled" else "Disabled",
@@ -1168,55 +1134,135 @@ private fun PatchOptionEditor(
 
 // ── Default Disabled Info Card ──
 
+/**
+ * Quick-action chip row above the patch list. Each chip is a one-click preset that
+ * sets the current selection. The chip whose state matches the current selection
+ * gets highlighted (accent border + tint) so the user can see at a glance what
+ * preset they're on.
+ */
 @Composable
-private fun DefaultDisabledInfoCard(
-    count: Int,
-    onDismiss: () -> Unit,
+private fun SelectionModeChips(
+    hasSavedSelection: Boolean,
+    activeMode: SelectionMode,
+    onApplySaved: () -> Unit,
+    onApplyDefaults: () -> Unit,
+    onApplyAll: () -> Unit,
+    onApplyNone: () -> Unit,
     modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // SAVED is computed by overlaying the saved-selection check on top of CUSTOM —
+        // when hasSavedSelection is true AND the current selection matches the saved
+        // bundle, we treat it as SAVED. The VM only knows ALL/DEFAULTS/NONE/CUSTOM, so
+        // we approximate: if hasSavedSelection is true and activeMode is CUSTOM, the
+        // user could still be on their saved set. We can't tell here without the
+        // bundle; for now SAVED highlights only when activeMode == SelectionMode.SAVED
+        // (which is set after applySavedDefaults by virtue of the chip being clicked).
+        SelectionModeChip(
+            label = "YOUR DEFAULTS",
+            icon = Icons.Default.Bookmark,
+            active = activeMode == SelectionMode.SAVED,
+            enabled = hasSavedSelection,
+            onClick = onApplySaved,
+            modifier = Modifier.weight(1f)
+        )
+        SelectionModeChip(
+            label = "PATCH DEFAULTS",
+            icon = Icons.Default.AutoAwesome,
+            active = activeMode == SelectionMode.DEFAULTS,
+            onClick = onApplyDefaults,
+            modifier = Modifier.weight(1f)
+        )
+        SelectionModeChip(
+            label = "ALL",
+            icon = Icons.Default.DoneAll,
+            active = activeMode == SelectionMode.ALL,
+            onClick = onApplyAll,
+            modifier = Modifier.weight(1f)
+        )
+        SelectionModeChip(
+            label = "NONE",
+            icon = Icons.Default.RemoveDone,
+            active = activeMode == SelectionMode.NONE,
+            onClick = onApplyNone,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun SelectionModeChip(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    active: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val corners = LocalMorpheCorners.current
     val mono = LocalMorpheFont.current
     val accents = LocalMorpheAccents.current
 
-    Row(
+    val hover = remember { MutableInteractionSource() }
+    val isHovered by hover.collectIsHoveredAsState()
+
+    val borderColor by animateColorAsState(
+        when {
+            !enabled -> MaterialTheme.colorScheme.outline.copy(alpha = 0.08f)
+            active -> accents.primary.copy(alpha = 0.55f)
+            isHovered -> accents.primary.copy(alpha = 0.35f)
+            else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+        },
+        animationSpec = tween(150)
+    )
+    val bgColor by animateColorAsState(
+        when {
+            !enabled -> Color.Transparent
+            active -> accents.primary.copy(alpha = 0.10f)
+            isHovered -> accents.primary.copy(alpha = 0.04f)
+            else -> Color.Transparent
+        },
+        animationSpec = tween(150)
+    )
+    val textColor = when {
+        !enabled -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+        active -> accents.primary
+        else -> accents.primary.copy(alpha = 0.7f)
+    }
+
+    Box(
         modifier = modifier
-            .fillMaxWidth()
+            .height(32.dp)
+            .hoverable(hover)
             .clip(RoundedCornerShape(corners.small))
-            .border(
-                1.dp,
-                accents.primary.copy(alpha = 0.15f),
-                RoundedCornerShape(corners.small)
-            )
-            .background(accents.primary.copy(alpha = 0.04f))
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .border(1.dp, borderColor, RoundedCornerShape(corners.small))
+            .background(bgColor, RoundedCornerShape(corners.small))
+            .let { if (enabled) it.clickable(onClick = onClick) else it }
+            .padding(horizontal = 8.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = Icons.Default.Info,
-            contentDescription = null,
-            tint = accents.primary.copy(alpha = 0.6f),
-            modifier = Modifier.size(16.dp)
-        )
-        Text(
-            text = "$count patch${if (count > 1) "es are" else " is"} unselected by default as they may cause issues.",
-            fontSize = 11.sp,
-            fontFamily = mono,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-            modifier = Modifier.weight(1f)
-        )
-        Box(
-            modifier = Modifier
-                .size(24.dp)
-                .clip(RoundedCornerShape(corners.small))
-                .clickable(onClick = onDismiss),
-            contentAlignment = Alignment.Center
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.Close,
-                contentDescription = "Dismiss",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                modifier = Modifier.size(14.dp)
+                imageVector = icon,
+                contentDescription = null,
+                tint = textColor,
+                modifier = Modifier.size(12.dp)
+            )
+            Text(
+                text = label,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = mono,
+                color = textColor,
+                letterSpacing = 1.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -1374,128 +1420,187 @@ private fun CommandPreview(
 // ── Architecture Selector ──
 
 @Composable
-private fun ArchitectureSelectorCard(
-    architectures: List<String>,
-    selectedArchitectures: Set<String>,
-    onToggleArchitecture: (String) -> Unit,
+private fun StripLibsStatusBanner(
+    status: StripLibsStatus,
     modifier: Modifier = Modifier
 ) {
     val corners = LocalMorpheCorners.current
     val mono = LocalMorpheFont.current
     val accents = LocalMorpheAccents.current
-    val deviceState by DeviceMonitor.state.collectAsState()
-    val deviceArch = deviceState.selectedDevice?.architecture
 
-    Column(
+    // Each status variant maps to a BannerDisplay that tells the banner what color,
+    // headline, description, and arch chips to render.
+    // accents.secondary is the app's "informational" accent; MaterialTheme tertiary is
+    // used for warning/fallback states.
+    val display: BannerDisplay = when (status) {
+        is StripLibsStatus.NoNativeLibs -> BannerDisplay(
+            dotColor = accents.secondary.copy(alpha = 0.4f),
+            headline = "NO NATIVE LIBS",
+            detail = "stripping does not apply"
+        )
+        is StripLibsStatus.Universal -> BannerDisplay(
+            dotColor = accents.secondary.copy(alpha = 0.4f),
+            headline = "UNIVERSAL LIBS",
+            detail = "single universal folder · stripping does not apply"
+        )
+        is StripLibsStatus.KeepAll -> BannerDisplay(
+            dotColor = accents.secondary.copy(alpha = 0.4f),
+            headline = "NO STRIPPING NEEDED",
+            detail = "keep-list covers every arch in this APK",
+            notInApkChips = status.notInApk
+        )
+        is StripLibsStatus.Fallback -> BannerDisplay(
+            dotColor = MaterialTheme.colorScheme.tertiary,
+            headline = "FALLBACK · KEEPING ALL",
+            detail = "no preferred archs present — review Strip Libs settings",
+            keepChips = status.apkArches
+        )
+        is StripLibsStatus.WillStrip -> BannerDisplay(
+            dotColor = accents.secondary,
+            headline = "STRIPPING NATIVE LIBS",
+            detail = "keeping listed archs only",
+            keepChips = status.keeping,
+            stripChips = status.stripping,
+            notInApkChips = status.notInApk
+        )
+    }
+    val (dotColor, headline, detail, keepChips, stripChips, notInApkChips) = display
+
+    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+    androidx.compose.foundation.layout.FlowRow(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(corners.small))
-            .border(
-                1.dp,
-                accents.secondary.copy(alpha = 0.15f),
-                RoundedCornerShape(corners.small)
-            )
-            .background(accents.secondary.copy(alpha = 0.03f))
-            .padding(12.dp)
+            .border(1.dp, dotColor.copy(alpha = 0.18f), RoundedCornerShape(corners.small))
+            .background(dotColor.copy(alpha = 0.035f))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+        itemVerticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(6.dp)
-                    .background(accents.secondary, RoundedCornerShape(1.dp))
-            )
-            Text(
-                text = "STRIP NATIVE LIBRARIES",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = mono,
-                color = MaterialTheme.colorScheme.onSurface,
-                letterSpacing = 1.sp
-            )
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
         Text(
-            text = "Uncheck architectures to remove from the output APK and reduce file size.",
+            text = headline,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = mono,
+            color = MaterialTheme.colorScheme.onSurface,
+            letterSpacing = 1.sp,
+            maxLines = 1
+        )
+        Text(
+            text = "— $detail",
             fontSize = 10.sp,
             fontFamily = mono,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
-
-        if (deviceArch != null) {
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "Your device's CPU architecture: $deviceArch",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium,
-                fontFamily = mono,
-                color = accents.secondary.copy(alpha = 0.8f)
-            )
+        Text(
+            text = "· Settings → Strip Libs",
+            fontSize = 9.sp,
+            fontFamily = mono,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+            letterSpacing = 0.5.sp,
+            maxLines = 1
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        keepChips.forEach { arch ->
+            ArchChip(label = arch, accent = dotColor, role = ArchChipRole.KEEP)
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            architectures.forEach { arch ->
-                val isSelected = selectedArchitectures.contains(arch)
-                val archHover = remember { MutableInteractionSource() }
-                val isArchHovered by archHover.collectIsHoveredAsState()
-                val archBorder by animateColorAsState(
-                    when {
-                        isSelected -> accents.secondary.copy(alpha = 0.4f)
-                        isArchHovered -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
-                        else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
-                    },
-                    animationSpec = tween(150)
-                )
-
-                Box(
-                    modifier = Modifier
-                        .hoverable(archHover)
-                        .clip(RoundedCornerShape(corners.small))
-                        .border(1.dp, archBorder, RoundedCornerShape(corners.small))
-                        .then(
-                            if (isSelected) Modifier.background(
-                                accents.secondary.copy(alpha = 0.08f),
-                                RoundedCornerShape(corners.small)
-                            ) else Modifier
-                        )
-                        .clickable { onToggleArchitecture(arch) }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .background(
-                                    if (isSelected) accents.secondary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f),
-                                    RoundedCornerShape(1.dp)
-                                )
-                        )
-                        Text(
-                            text = arch,
-                            fontSize = 11.sp,
-                            fontFamily = mono,
-                            fontWeight = FontWeight.Medium,
-                            color = if (isSelected) accents.secondary
-                                   else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        )
-                    }
-                }
-            }
+        stripChips.forEach { arch ->
+            ArchChip(label = arch, accent = dotColor, role = ArchChipRole.STRIP)
+        }
+        notInApkChips.forEach { arch ->
+            ArchChip(label = arch, accent = dotColor, role = ArchChipRole.NOT_IN_APK)
         }
     }
 }
+
+private enum class ArchChipRole { KEEP, STRIP, NOT_IN_APK }
+
+@Composable
+private fun ArchChip(
+    label: String,
+    accent: Color,
+    role: ArchChipRole
+) {
+    val corners = LocalMorpheCorners.current
+    val mono = LocalMorpheFont.current
+
+    // Chip visual treatment per role:
+    //  - KEEP       : filled accent background, strong border, full-opacity text
+    //  - STRIP      : outlined only, dim border, dimmed text
+    //  - NOT_IN_APK : outlined only, very dim border, dimmed italicized text —
+    //                 signals "this preference has no effect on this APK"
+    val borderAlpha = when (role) {
+        ArchChipRole.KEEP -> 0.4f
+        ArchChipRole.STRIP -> 0.15f
+        ArchChipRole.NOT_IN_APK -> 0.12f
+    }
+    val textAlpha = when (role) {
+        ArchChipRole.KEEP -> 1f
+        ArchChipRole.STRIP -> 0.45f
+        ArchChipRole.NOT_IN_APK -> 0.5f
+    }
+    val roleLabel = when (role) {
+        ArchChipRole.KEEP -> "keep"
+        ArchChipRole.STRIP -> "strip"
+        ArchChipRole.NOT_IN_APK -> "not in apk"
+    }
+    val labelColor = when (role) {
+        ArchChipRole.KEEP -> accent.copy(alpha = textAlpha)
+        ArchChipRole.STRIP -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = textAlpha)
+        ArchChipRole.NOT_IN_APK -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = textAlpha)
+    }
+
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(corners.small))
+            .border(1.dp, accent.copy(alpha = borderAlpha), RoundedCornerShape(corners.small))
+            .then(
+                if (role == ArchChipRole.KEEP) {
+                    Modifier.background(accent.copy(alpha = 0.08f), RoundedCornerShape(corners.small))
+                } else Modifier
+            )
+            .padding(horizontal = 7.dp, vertical = 3.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Text(
+                text = roleLabel,
+                fontSize = 8.sp,
+                fontFamily = mono,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.5.sp,
+                color = accent.copy(alpha = textAlpha * 0.7f),
+                fontStyle = if (role == ArchChipRole.NOT_IN_APK) androidx.compose.ui.text.font.FontStyle.Italic
+                            else androidx.compose.ui.text.font.FontStyle.Normal
+            )
+            Text(
+                text = label,
+                fontSize = 10.sp,
+                fontFamily = mono,
+                fontWeight = FontWeight.Medium,
+                color = labelColor,
+                fontStyle = if (role == ArchChipRole.NOT_IN_APK) androidx.compose.ui.text.font.FontStyle.Italic
+                            else androidx.compose.ui.text.font.FontStyle.Normal
+            )
+        }
+    }
+}
+
+/**
+ * Per-status display data for the strip-libs banner. Lets the `when(status)` branch
+ * stay terse (each variant just fills in what's relevant) and the rendering code
+ * below stay uniform.
+ */
+private data class BannerDisplay(
+    val dotColor: Color,
+    val headline: String,
+    val detail: String,
+    val keepChips: List<String> = emptyList(),
+    val stripChips: List<String> = emptyList(),
+    val notInApkChips: List<String> = emptyList()
+)

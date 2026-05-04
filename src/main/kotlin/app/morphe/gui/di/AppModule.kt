@@ -6,7 +6,9 @@
 package app.morphe.gui.di
 
 import app.morphe.gui.data.repository.ConfigRepository
+import app.morphe.gui.data.repository.PatchPreferencesRepository
 import app.morphe.gui.data.repository.PatchSourceManager
+import app.morphe.gui.data.repository.UpdateCheckRepository
 import app.morphe.gui.util.PatchService
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
@@ -57,21 +59,48 @@ val appModule = module {
 
     // Repositories and Services
     single { ConfigRepository() }
+    single { PatchPreferencesRepository() }
     single { PatchSourceManager(get(), get()) }
     single { PatchService() }
+    single { UpdateCheckRepository(get()) }
 
     // ViewModels (ScreenModels)
     // ViewModels observe PatchSourceManager.sourceVersion and reload on source changes.
     factory {
-        HomeViewModel(get(), get(), get())
+        HomeViewModel(get(), get(), get(), get())
     }
     factory { params ->
         val psm = get<PatchSourceManager>()
-        PatchesViewModel(params.get(), params.get(), psm.getActiveRepositorySync(), get(), psm.getLocalFilePath(), psm)
+        PatchesViewModel(
+            params.get(),
+            params.get(),
+            psm.getActiveRepositorySync(),
+            get(),
+            psm.getLocalFilePath(),
+            psm
+        )
     }
     factory { params ->
         val psm = get<PatchSourceManager>()
-        PatchSelectionViewModel(params.get(), params.get(), params.get(), params.get(), params.get(), get(), psm.getActiveRepositorySync(), psm.getLocalFilePath())
+        PatchSelectionViewModel(
+            params.get(),
+            params.get(),
+            params.get(),
+            params.get(),
+            params.get(),
+            get(),
+            psm.getActiveRepositorySync(),
+            get(),
+            get(),
+            psm.getActiveSourceName(),
+            psm.getLocalFilePath()
+        )
     }
-    factory { params -> PatchingViewModel(params.get(), get(), get()) }
+    factory { params ->
+        PatchingViewModel(
+            params.get(),
+            get(),
+            get()
+        )
+    }
 }

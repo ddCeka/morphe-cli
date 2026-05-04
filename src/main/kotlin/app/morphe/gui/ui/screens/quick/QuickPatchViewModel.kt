@@ -11,9 +11,11 @@ import app.morphe.gui.data.constants.AppConstants
 import app.morphe.gui.data.model.Patch
 import app.morphe.gui.data.model.PatchConfig
 import app.morphe.gui.data.model.SupportedApp
+import app.morphe.engine.UpdateInfo
 import app.morphe.gui.data.repository.ConfigRepository
 import app.morphe.gui.data.repository.PatchRepository
 import app.morphe.gui.data.repository.PatchSourceManager
+import app.morphe.gui.data.repository.UpdateCheckRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,7 +37,8 @@ import java.io.File
 class QuickPatchViewModel(
     private val patchSourceManager: PatchSourceManager,
     private val patchService: PatchService,
-    private val configRepository: ConfigRepository
+    private val configRepository: ConfigRepository,
+    private val updateCheckRepository: UpdateCheckRepository,
 ) : ScreenModel {
 
     private var patchRepository: PatchRepository = patchSourceManager.getActiveRepositorySync()
@@ -57,6 +60,16 @@ class QuickPatchViewModel(
         // Load patches on startup to get dynamic app info
         loadPatchesAndSupportedApps()
 
+        // Background CLI update check — non-blocking, banner only.
+        screenModelScope.launch {
+            val info = updateCheckRepository.getUpdateInfo()
+            val dismissed = configRepository.loadConfig().dismissedUpdateVersion
+            _uiState.value = _uiState.value.copy(
+                updateInfo = info,
+                dismissedUpdateVersion = dismissed,
+            )
+        }
+
         // Observe source changes
         screenModelScope.launch {
             patchSourceManager.sourceVersion.drop(1).collect {
@@ -67,9 +80,54 @@ class QuickPatchViewModel(
                 cachedPatchesFile = null
                 cachedPatches = emptyList()
                 cachedSupportedApps = emptyList()
-                _uiState.value = QuickPatchUiState(isDefaultSource = isDefaultSource)
+                val carriedUpdate = _uiState.value.updateInfo
+                val carriedDismissed = _uiState.value.dismissedUpdateVersion
+                _uiState.value = QuickPatchUiState(
+                    isDefaultSource = isDefaultSource,
+                    updateInfo = carriedUpdate,
+                    dismissedUpdateVersion = carriedDismissed,
+                )
                 loadPatchesAndSupportedApps()
             }
+        }
+    }
+
+    /**
+     * Re-run the update check. Called by Settings after the user changes the
+     * update channel preference.
+     */
+    fun refreshUpdateCheck() {
+        Logger.info("QuickVM: refreshUpdateCheck() called")
+        screenModelScope.launch {
+            updateCheckRepository.clearCache()
+            val info = updateCheckRepository.getUpdateInfo()
+            val dismissed = configRepository.loadConfig().dismissedUpdateVersion
+            Logger.info("QuickVM: refresh result — info=${info?.latestVersion}, dismissed=$dismissed")
+            _uiState.value = _uiState.value.copy(
+                updateInfo = info,
+                dismissedUpdateVersion = dismissed,
+                updateBannerSessionDismissed = false,
+            )
+        }
+    }
+
+    /**
+     * Hide the update banner for the rest of this session only. Reappears on
+     * next app start.
+     */
+    fun dismissUpdateForSession() {
+        _uiState.value = _uiState.value.copy(updateBannerSessionDismissed = true)
+    }
+
+    /**
+     * Hide the update banner persistently for the current available version.
+     * Reappears automatically when an even newer version drops.
+     */
+    fun dismissUpdateForVersion() {
+        val target = _uiState.value.updateInfo?.latestVersion ?: return
+        _uiState.value = _uiState.value.copy(dismissedUpdateVersion = target)
+        screenModelScope.launch {
+            configRepository.setDismissedUpdateVersion(target)
         }
     }
 
@@ -156,6 +214,7 @@ class QuickPatchViewModel(
                     isLoadingPatches = false,
                     supportedApps = supportedApps,
                     patchesVersion = release.tagName,
+                    latestPatchesVersion = release.tagName,
                     patchSourceName = patchSourceManager.getActiveSourceName(),
                     patchLoadError = null,
                     isOffline = false
@@ -458,8 +517,12 @@ class QuickPatchViewModel(
             )
 
             // Generate output path
-            val outputDir = apkFile.parentFile ?: File(System.getProperty("user.home"))
+            val appConfig = configRepository.loadConfig()
             val baseName = apkInfo.displayName.replace(" ", "-")
+            val baseOutputDir = appConfig.defaultOutputDirectory?.let { File(it) }
+                ?: apkFile.parentFile
+                ?: File(System.getProperty("user.home"))
+            val outputDir = File(baseOutputDir, baseName).also { it.mkdirs() }
             val patchesVersion = Regex("""(\d+\.\d+\.\d+(?:-dev\.\d+)?)""")
                 .find(patchFile.name)?.groupValues?.get(1)
             val patchesSuffix = if (patchesVersion != null) "-patches-$patchesVersion" else ""
@@ -467,7 +530,6 @@ class QuickPatchViewModel(
             val outputPath = File(outputDir, outputFileName).absolutePath
 
             // Resolve keystore: use saved path, or derive from output APK location
-            val appConfig = configRepository.loadConfig()
             val resolvedKeystorePath = appConfig.keystorePath
                 ?: File(outputPath).let { out ->
                     out.resolveSibling(out.nameWithoutExtension + ".keystore").absolutePath
@@ -558,17 +620,26 @@ class QuickPatchViewModel(
     }
 
     /**
-     * Reset to start over.
+     * Reset to start over. Preserves the already-loaded patches metadata so
+     * the patches version badge (and its LATEST chip) stays correct without
+     * a re-fetch — losing `latestPatchesVersion` or `patchSourceName` here
+     * would cause the LATEST chip to silently disappear after the user
+     * removes the loaded APK.
      */
     fun reset() {
         patchingJob?.cancel()
         patchingJob = null
         _uiState.value = QuickPatchUiState(
-            // Preserve already-loaded patches data
             isDefaultSource = isDefaultSource,
             isLoadingPatches = false,
             supportedApps = cachedSupportedApps,
-            patchesVersion = _uiState.value.patchesVersion
+            patchesVersion = _uiState.value.patchesVersion,
+            latestPatchesVersion = _uiState.value.latestPatchesVersion,
+            patchSourceName = _uiState.value.patchSourceName,
+            isOffline = _uiState.value.isOffline,
+            updateInfo = _uiState.value.updateInfo,
+            dismissedUpdateVersion = _uiState.value.dismissedUpdateVersion,
+            updateBannerSessionDismissed = _uiState.value.updateBannerSessionDismissed,
         )
     }
 
@@ -641,9 +712,19 @@ data class QuickPatchUiState(
     val isLoadingPatches: Boolean = true,
     val supportedApps: List<SupportedApp> = emptyList(),
     val patchesVersion: String? = null,
+    val latestPatchesVersion: String? = null,
     val patchSourceName: String? = null,
     val patchLoadError: String? = null,
     val isOffline: Boolean = false,
     // Compatible patches for the loaded APK
-    val compatiblePatches: List<Patch> = emptyList()
-)
+    val compatiblePatches: List<Patch> = emptyList(),
+    val updateInfo: UpdateInfo? = null,
+    val dismissedUpdateVersion: String? = null,
+    /** Session-only dismiss; cleared on next app start. Not persisted. */
+    val updateBannerSessionDismissed: Boolean = false,
+) {
+    val showUpdateBanner: Boolean
+        get() = updateInfo != null &&
+                updateInfo.latestVersion != dismissedUpdateVersion &&
+                !updateBannerSessionDismissed
+}
