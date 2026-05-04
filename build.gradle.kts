@@ -205,6 +205,7 @@ tasks {
         from(rootProject.file("NOTICE"), rootProject.file("LICENSE"))
         minimize {
             exclude(dependency("org.bouncycastle:.*"))
+            exclude(dependency("com.github.REAndroid:ARSCLib"))
             exclude(dependency("app.morphe:morphe-patcher"))
             // Ktor uses ServiceLoader
             exclude(dependency("io.ktor:.*"))
