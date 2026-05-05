@@ -4,7 +4,7 @@ Build Morphe CLI from source.
 
 ## 📝 Requirements
 
-- Java Development Kit 11 (Azul Zulu JRE or OpenJDK)
+- Java Development Kit 21 (Azul Zulu JRE or OpenJDK)
 
 ## 🏗️ Building
 

@@ -3,7 +3,7 @@
     "main",
     {
       "name": "master",
-      "prerelease": true
+      "prerelease": false
     }
   ],
   "plugins": [
