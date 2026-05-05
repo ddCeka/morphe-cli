@@ -1,3 +1,27 @@
+# [1.8.0](https://github.com/ddCeka/morphe-cli/compare/v1.7.0...v1.8.0) (2026-05-05)
+
+
+### Bug Fixes
+
+* ARSCLib libraries are excluded during minimization ([2714ab5](https://github.com/ddCeka/morphe-cli/commit/2714ab52d934380b665c396b02b079bc6e3d89be))
+* ARSCLib libraries are not included in minimized fat jar ([5dce038](https://github.com/ddCeka/morphe-cli/commit/5dce03815fea09525a992ce2cc1df30b421a818f))
+* continue-on-error fix + force windows to `FULL` ([#120](https://github.com/ddCeka/morphe-cli/issues/120)) ([036faba](https://github.com/ddCeka/morphe-cli/commit/036faba68f8f0c1f683f3c6222f08d0377217266))
+* Include Notice and License files in shadow jar release ([#113](https://github.com/ddCeka/morphe-cli/issues/113)) ([a9a2402](https://github.com/ddCeka/morphe-cli/commit/a9a2402209bd0ddd273c0aa5185888b74c69d118))
+* Re-enable strip libs feature ([#117](https://github.com/ddCeka/morphe-cli/issues/117)) ([6d2bb94](https://github.com/ddCeka/morphe-cli/commit/6d2bb94425e3fa040cc0d00261b77559d69e4470))
+* remove gui leftover ([e23e151](https://github.com/ddCeka/morphe-cli/commit/e23e1510b80cd60d4f1819ac093c5238f1ff8a8a))
+* Update to latest patcher ([efd0cf1](https://github.com/ddCeka/morphe-cli/commit/efd0cf16dbac6625a54e2f82881bbe16c9e8acce))
+* Update to patcher 1.5.1 ([d7c5036](https://github.com/ddCeka/morphe-cli/commit/d7c5036398867cd037a4d116d71b5162fc17d65a))
+
+
+### Features
+
+* Add in-app dependency license viewer ([#114](https://github.com/ddCeka/morphe-cli/issues/114)) ([77a1dde](https://github.com/ddCeka/morphe-cli/commit/77a1ddea595dd83331c9d0ce246620ebd64bcd22))
+* Add search function to license viewer ([#124](https://github.com/ddCeka/morphe-cli/issues/124)) ([d3d9feb](https://github.com/ddCeka/morphe-cli/commit/d3d9feb477d5b5c3281e066efc7a935573a47090))
+* Custom output path + better GUI scrollbars ([#127](https://github.com/ddCeka/morphe-cli/issues/127)) ([70e2721](https://github.com/ddCeka/morphe-cli/commit/70e27218a87a09c26edc96fd7cb7c38dcba9c79c))
+* Faster dex rebuilding + reduced memory requirements  ([#108](https://github.com/ddCeka/morphe-cli/issues/108)) ([ed8918e](https://github.com/ddCeka/morphe-cli/commit/ed8918eb8d26634f717e09b58aa174c1d1353a07))
+* Support GitHub repo urls with `--patches` argument ([#71](https://github.com/ddCeka/morphe-cli/issues/71)) ([2cc09a9](https://github.com/ddCeka/morphe-cli/commit/2cc09a9fc6c61ddb210a023941b7cf528705d8cb))
+* UI improvements and fixes ([#128](https://github.com/ddCeka/morphe-cli/issues/128)) ([980ebac](https://github.com/ddCeka/morphe-cli/commit/980ebacceb073a00ea4b6b011550b73c94f9cc30))
+
 # [1.8.0](https://github.com/MorpheApp/morphe-cli/compare/v1.7.0...v1.8.0) (2026-05-04)
 
 
